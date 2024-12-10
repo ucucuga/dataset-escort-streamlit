@@ -253,146 +253,51 @@ with tab3:
 
 with tab4:
     st.subheader("Price Prediction")
-    # Page configuration
+    # Load saved model
+    with open('model.pkl', 'rb') as file:
+        model = pickle.load(file)
+    with open('scaler.pkl', 'rb') as file:
+        loaded_scaler = pickle.load(file)
+    
+    st.write("Enter parameters for price prediction:")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        age = st.number_input("Age", min_value=18, max_value=58, value=25)
+        height = st.number_input("Height (cm)", min_value=140, max_value=200, value=165)
+        weight = st.number_input("Weight (kg)", min_value=40, max_value=120, value=55)
+        
+    with col2:
+        breast_size = st.number_input("Breast Size", min_value=1, max_value=12, value=2)
+        size = st.number_input("Size", min_value=30, max_value=85, value=42)
 
-    # Function for handling outliers
-    def remove_outliers(df, columns, n_std):
-        for col in columns:
-            mean = df[col].mean()
-            std = df[col].std()
-            df = df[abs(df[col] - mean) <= (n_std * std)]
-        return df
-
-    # Function for training model
-    def train_model():
-        # Load data
-        data = pd.read_csv("data.csv")
-        data = data.replace(u'\xa0', u'', regex=True)
+    if st.button("Calculate Price"):
+        # Prepare data for prediction
+        input_data = pd.DataFrame({
+            'Age': [age],
+            'Boobs': [breast_size],
+            'Height': [height], 
+            'Size': [size],
+            'Weight': [weight]
+        })
         
-        # Clean data
-        cleaned_data = data.dropna()
-        numeric_columns = ['Age', 'Height', 'Weight', 'Price_USD']
-        df_cleaned = remove_outliers(cleaned_data, numeric_columns, 3)
+        # Scale the input data
+        input_scaled = loaded_scaler.transform(input_data)
         
-        # Prepare data
-        X = df_cleaned[['Age', 'Boobs', 'Height', 'Size', 'Weight']]
-        Y = df_cleaned['Price_USD']
+        # Get prediction
+        prediction = model.predict(input_scaled)[0]
         
-        # Split data
-        X_train, X_test, y_train, y_test = train_test_split(X, Y, test_size=0.2, random_state=42)
+        # Format prediction as float with 2 decimal places
+        predicted_price = float(prediction)
         
-        # Normalization
-        scaler = StandardScaler()
-        X_scaled = scaler.fit_transform(X)
-        X_train_scaled = scaler.transform(X_train)
-        
-        # Parameters for GridSearch
-        param_grid = {
-            'n_estimators': [100, 200, 300],
-            'max_depth': [10, 20, 30, None],
-            'min_samples_split': [2, 5, 10],
-            'min_samples_leaf': [1, 2, 4]
-        }
-        
-        # Train model
-        rf = RandomForestRegressor(random_state=42)
-        grid_search = GridSearchCV(estimator=rf, param_grid=param_grid, 
-                                cv=5, n_jobs=-1, scoring='neg_mean_squared_error')
-        grid_search.fit(X_train_scaled, y_train)
-        
-        best_model = grid_search.best_estimator_
-        
-        # Save model and scaler
-        with open('model.pkl', 'wb') as file:
-            pickle.dump(best_model, file)
-        with open('scaler.pkl', 'wb') as file:
-            pickle.dump(scaler, file)
-        
-        return best_model, scaler
-
-    # Function for prediction
-    def predict_price(age, boobs, height, size, weight, model, scaler):
-        features_input = np.array([[age, boobs, height, size, weight]])
-        
-        # Input validation
-        if age < 18 or age > 60:
-            raise ValueError("Age must be between 18 and 60")
-        if height < 150 or height > 190:
-            raise ValueError("Height must be between 150 and 190")
-        
-        # Normalize input data
-        features_scaled = scaler.transform(features_input)
-        
-        # Prediction with confidence interval
-        predictions = [tree.predict(features_scaled) for tree in model.estimators_]
-        price = model.predict(features_scaled)[0]
-        confidence = np.std(predictions) * 2
-        
-        return {
-            'predicted_price': round(price, 2),
-            'confidence_interval': f'±{round(confidence, 2)}',
-            'min_price': round(max(0, price - confidence), 2),
-            'max_price': round(price + confidence, 2)
-        }
-
-    # Main Streamlit interface
-    def main():
-        st.title("Price Prediction 💰")
-        
-        # Check for saved model
-        if not (os.path.exists('model.pkl') and os.path.exists('scaler.pkl')):
-            st.warning("Model not trained. Starting training...")
-            with st.spinner('Training model...'):
-                model, scaler = train_model()
-            st.success("Model successfully trained!")
-        else:
-            with open('model.pkl', 'rb') as file:
-                model = pickle.load(file)
-            with open('scaler.pkl', 'rb') as file:
-                scaler = pickle.load(file)
-        
-        # Button for model retraining
-        if st.button("Retrain model"):
-            with st.spinner('Retraining model...'):
-                model, scaler = train_model()
-            st.success("Model successfully retrained!")
-        
-        # Input form
-        st.subheader("Enter data for prediction")
-        
-        col1, col2 = st.columns(2)
-        
+        col1, col2, col3 = st.columns(3)
+                
         with col1:
-            age = st.number_input("Age", min_value=18, max_value=60, value=25)
-            boobs = st.number_input("Breast Size", min_value=1, max_value=5, value=2)
-            height = st.number_input("Height", min_value=150, max_value=190, value=165)
+            st.metric("Predicted Price", f"${predicted_price:.2f}")
         
         with col2:
-            size = st.number_input("Clothing Size", min_value=40, max_value=60, value=44)
-            weight = st.number_input("Weight", min_value=40, max_value=100, value=55)
+            st.metric("Minimum Price", f"${predicted_price * 0.8:.2f}")
         
-        if st.button("Calculate Price"):
-            try:
-                result = predict_price(age, boobs, height, size, weight, model, scaler)
-                
-                st.success("Prediction successfully completed!")
-                
-                # Display results in nice format
-                col1, col2, col3 = st.columns(3)
-                
-                with col1:
-                    st.metric("Predicted Price", f"${result['predicted_price']}")
-                
-                with col2:
-                    st.metric("Minimum Price", f"${result['min_price']}")
-                
-                with col3:
-                    st.metric("Maximum Price", f"${result['max_price']}")
-                
-                st.info(f"Confidence Interval: {result['confidence_interval']}")
-                
-            except ValueError as e:
-                st.error(f"Error: {str(e)}")
-
-    if __name__ == "__main__":
-        main()
+        with col3:
+            st.metric("Maximum Price", f"${predicted_price * 1.2:.2f}")
