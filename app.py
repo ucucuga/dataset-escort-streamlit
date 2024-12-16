@@ -14,6 +14,15 @@ import os
 st.set_page_config(page_title="Data Analysis", layout="wide")
 st.title("Escort Services Data Analysis")
 
+st.markdown("""
+This dashboard provides comprehensive analysis of escort services data. The analysis is divided into 4 main sections:
+
+1. **Distributions** - Shows the distribution of key features like age, height and clothing sizes
+2. **Correlations** - Analyzes relationships between different attributes
+3. **Hypothesis** - Tests hypothesis about correlation between breast size and price
+4. **Price Prediction** - ML model to predict prices based on features
+""")
+
 # Load data
 @st.cache_data
 def load_data():
@@ -25,15 +34,16 @@ data = load_data()
 
 # Show raw data
 if st.checkbox("Show raw data"):
+    st.subheader("Below is the raw data from our dataset. You can see the first few rows and basic information about the columns.")
     st.write(data.head())
-    st.write(data.info())
+    # st.write(data.info())
     
     # Add new columns
     data['Salary'] = data['Price_USD'] * 22
     data['Before Retirement'] = 58 - data['Age']
     
     # Display data
-    st.subheader("First 5 rows of data:")
+    st.subheader("Modified data with 2 new columns")
     st.dataframe(data.head())
     
     # Add download button for updated dataset
@@ -57,6 +67,19 @@ cleaned_data[categorical_columns] = cleaned_data[categorical_columns].fillna(cle
 tab1, tab2, tab3, tab4 = st.tabs(["Distributions", "Correlations", "Hypothesis", "Price Prediction"])
 
 with tab1:
+    st.markdown("""
+    # Distribution Analysis
+    ## Here we analyze the distribution of key features in our dataset:
+    
+    ### 1. *Age Distribution* - Bar chart showing frequency of different age groups (using Seaborn)
+    ### 2. *Height Distribution* - Stem plot showing height frequencies (using Matplotlib)
+    ### 3. *Size Distribution* - Pie chart showing proportion of different clothing sizes (using Matplotlib)
+    
+    **Libraries used:**
+    - **Matplotlib - for basic plotting functionality**
+    - **Seaborn - for statistical data visualization**
+    """)
+    
     fig1, ax1 = plt.subplots(figsize=(15, 6))
     fig1.set_facecolor('#f5f5f5')
 
@@ -131,8 +154,14 @@ with tab1:
     st.pyplot(fig3)
 
 with tab2:
-# Page configuration
-    st.subheader("Correlation Analysis")
+    st.markdown("""
+    # Correlation Analysis
+    ### This section explores relationships between different features:
+    
+    1. ### **Breast Size vs Age** - Box plot showing breast size distribution across age groups
+    2. ### **Height vs Clothing Size** - Scatter plot with regression line showing relationship between height and clothing size
+    """)
+    
     
     fig1, ax1 = plt.subplots(figsize=(10, 6))
     
@@ -159,7 +188,12 @@ with tab2:
     ax1.spines['right'].set_visible(False)
     
     st.pyplot(fig1)
-
+    st.markdown("""### How to Read This Box Plot:
+    - Each box represents a different age group
+    - The middle line in each box is the median breast size for that age
+    - The box itself shows where 50% of the data falls (25th to 75th percentile)
+    - The points extend to show the full range of sizes
+    - Any points beyond the boxes are potential outliers""")
 
     fig2, ax2 = plt.subplots(figsize=(10, 6))
     sns.regplot(x="Height", y="Size", 
@@ -193,10 +227,27 @@ with tab2:
     ax2.spines['bottom'].set_color('#2f4f4f')
 
     st.pyplot(fig2)
+    st.markdown("""### How to Read This Scatter Plot:
+    - The pink dots show actual data points, with some transparency to show overlapping
+    - The purple dashed line is the regression line that shows the general trend
+    - An upward slope indicates a positive correlation: as height increases, clothing size tends to increase
+    - Points far from the line represent cases that deviate from the general trend""")
 
 with tab3:
-    st.subheader("Hypothesis")
-# Create price bins
+    st.markdown("""
+    ### Hypothesis Testing
+    This section tests our main hypothesis about pricing and breast size:
+    
+    Initial Hypothesis: Escorts with larger breast sizes command higher prices for their services.
+    
+    We'll examine this through:
+    1. **Price Distribution by Breast Size** - Interactive histogram showing price ranges across breast sizes
+    2. **Average Service Cost Analysis** - Bar chart and statistical breakdown of average prices by breast size
+    
+    Let's analyze the data to see if there's a significant correlation between breast size and pricing.
+    """)
+    
+    # Create price bins
     price_bins = pd.cut(cleaned_data['Price_USD'], 
                     bins=range(0, 1001, 100), 
                     right=False,
@@ -207,7 +258,6 @@ with tab3:
     )
 
     # Plotly histogram
-    st.subheader("Price Distribution by Breast Size")
     fig = px.histogram(cleaned_data, 
                     x='Price_Bins', 
                     color='Boobs',
@@ -250,16 +300,42 @@ with tab3:
         
         plt.tight_layout()
         st.pyplot(fig)
+    st.markdown("""
+    ### Model Analysis Results
+    
+    Our initial hypothesis about significant price variations based on physical parameters has been disproven:
+    - The data shows that earnings are relatively uniform across different physical characteristics
+    - This suggests that other factors (such as location, services, or market conditions) may be more influential
+        """)
+    
 
 with tab4:
+
     st.subheader("Price Prediction")
+    st.markdown("""
+    ### Model Details
+    
+    For price prediction, we utilized:
+    - **Random Forest Regressor** as our main model
+    - **StandardScaler** for feature normalization
+    - **Cross-validation** to ensure model robustness
+    - **GridSearchCV** for hyperparameter tuning
+    
+    Key model characteristics:
+    - Features used: Age, Height, Weight, Breast Size, Clothing Size
+    - Train/Test split: 80/20
+    - Model performance metrics were optimized using RMSE
+    - Hyperparameters were tuned for optimal performance
+    
+    """)
+    
     # Load saved model
     with open('model.pkl', 'rb') as file:
         model = pickle.load(file)
     with open('scaler.pkl', 'rb') as file:
         loaded_scaler = pickle.load(file)
     
-    st.write("Enter parameters for price prediction:")
+    st.subheader("Enter parameters for price prediction:")
     
     col1, col2 = st.columns(2)
     
@@ -301,3 +377,10 @@ with tab4:
         
         with col3:
             st.metric("Maximum Price", f"${predicted_price * 1.2:.2f}")
+            
+        st.write("""
+        The prediction shows:
+        - The most likely price based on your inputs
+        - A minimum recommended price (20% below prediction)
+        - A maximum recommended price (20% above prediction)
+        """)
